@@ -68,12 +68,25 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "=== Installing prerequisites (Docker, AWS CLI, docker-compose) ==="
+            echo "=== Installing Docker & AWS CLI v2 ==="
             sudo apt-get update -y
-            sudo apt-get install -y awscli docker.io curl
-            sudo curl -L "https://github.com/docker/compose/releases/download/v2.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-            sudo usermod -aG docker ubuntu || true
+            sudo apt-get install -y unzip curl ca-certificates gnupg lsb-release
+
+            # Install Docker CE
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update -y
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+            sudo groupadd docker || true
+            sudo usermod -aG docker ubuntu
+
+            # Install AWS CLI v2
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install || true
+            rm -rf aws awscliv2.zip
 
             echo "=== Logging in to ECR ==="
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ECR_REGISTRY_URL }}
@@ -88,6 +101,6 @@ jobs:
             echo "=== Pulling new image ==="
             docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$AWS_ECR_REPOSITORY:$IMAGE_TAG
 
-            echo "=== Deploying with docker-compose ==="
-            docker-compose -f docker-compose-ecr.yml down
-            docker-compose -f docker-compose-ecr.yml up -d --remove-orphans
+            echo "=== Deploying with docker compose ==="
+            docker compose -f /home/ubuntu/docker-compose-ecr.yml down
+            docker compose -f /home/ubuntu/docker-compose-ecr.yml up -d --remove-orphans
