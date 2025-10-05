@@ -32,11 +32,9 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # --- Define ECR Registry URL dynamically ---
       - name: Set ECR Registry URL
         run: echo "AWS_ECR_REGISTRY_URL=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
 
-      # --- Build & Push Docker Image ---
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -47,7 +45,6 @@ jobs:
           tags: |
             ${{ env.AWS_ECR_REGISTRY_URL }}/${{ env.AWS_ECR_REPOSITORY }}:${{ github.sha }}
 
-      # --- Security Scan on Built Image ---
       - name: Scan Docker image with Trivy (Fail on HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@master
         with:
@@ -55,7 +52,7 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
-          exit-code: 1   # Fail pipeline on vulnerabilities
+          exit-code: 1
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
@@ -63,28 +60,34 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
 
-      # --- Deploy to EC2 ---
       - name: Deploy on EC2 via SSH
-        if: success() # will not run if scan step fails
+        if: success()
         uses: appleboy/ssh-action@v0.1.8
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "Logging in to ECR..."
+            echo "=== Installing prerequisites (Docker, AWS CLI, docker-compose) ==="
+            sudo apt-get update -y
+            sudo apt-get install -y awscli docker.io curl
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            sudo usermod -aG docker ubuntu || true
+
+            echo "=== Logging in to ECR ==="
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ECR_REGISTRY_URL }}
 
-            echo "Exporting environment variables..."
+            echo "=== Exporting environment variables ==="
             export AWS_REGION=${{ env.AWS_REGION }}
             export AWS_ACCOUNT_ID=${{ env.AWS_ACCOUNT_ID }}
             export AWS_ECR_REPOSITORY=${{ env.AWS_ECR_REPOSITORY }}
             export IMAGE_TAG=${{ github.sha }}
             export GOOGLE_MAPS_API_KEY=${{ secrets.GOOGLE_MAPS_API_KEY }}
 
-            echo "Pulling new image..."
+            echo "=== Pulling new image ==="
             docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$AWS_ECR_REPOSITORY:$IMAGE_TAG
 
-            echo "Deploying with docker-compose..."
-            docker compose -f docker-compose-ecr.yml down
-            docker compose -f docker-compose-ecr.yml up -d --remove-orphans
+            echo "=== Deploying with docker-compose ==="
+            docker-compose -f docker-compose-ecr.yml down
+            docker-compose -f docker-compose-ecr.yml up -d --remove-orphans
