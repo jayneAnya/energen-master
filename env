@@ -1,0 +1,18 @@
+# AWS Configuration
+AWS_ACCESS_KEY_ID=your_aws_access_key_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+AWS_REGION=us-east-1
+AWS_ACCOUNT_ID=your_aws_account_id_here
+AWS_ECR_REPOSITORY=energen-spa
+AWS_ECR_REGISTRY_ID=your_ecr_registry_id_here
+
+# ECS Configuration (Optional)
+AWS_ECS_CLUSTER=energen-cluster
+AWS_ECS_SERVICE=energen-service
+AWS_ECS_TASK_DEFINITION=energen-task-definition
+
+# Google Maps API
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+
+# Portainer Configuration
+PORTAINER_ADMIN_PASSWORD=your_secure_password_here

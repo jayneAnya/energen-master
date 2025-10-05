@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  web:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPOSITORY}:${IMAGE_TAG}
+    container_name: energen-web
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
